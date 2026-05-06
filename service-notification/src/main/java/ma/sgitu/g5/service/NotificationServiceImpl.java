@@ -124,14 +124,25 @@ public class NotificationServiceImpl implements INotificationService {
         n.setSourceService(dto.getSourceService());
         n.setEventType(dto.getEventType());
         n.setChannel(dto.getChannel());
-        // Conversion String -> Enum pour le type
-        n.setType(NotificationType.valueOf(dto.getChannel()));
-        n.setPriority(dto.getPriority());
-        n.setUserId(dto.getRecipient().getUserId());
-        n.setEmail(dto.getRecipient().getEmail());
-        n.setPhone(dto.getRecipient().getPhone());
-        n.setDeviceToken(dto.getRecipient().getDeviceToken());
-        n.setRecipient(resolveRecipientString(dto.getRecipient(), dto.getChannel()));
+        
+        // Sécurisation de la conversion Enum
+        try {
+            n.setType(NotificationType.valueOf(dto.getChannel().toUpperCase()));
+        } catch (Exception e) {
+            log.warn("Canal inconnu {}, repli sur EMAIL", dto.getChannel());
+            n.setType(NotificationType.EMAIL);
+        }
+
+        n.setPriority(dto.getPriority() != null ? dto.getPriority() : "NORMAL");
+        
+        if (dto.getRecipient() != null) {
+            n.setUserId(dto.getRecipient().getUserId());
+            n.setEmail(dto.getRecipient().getEmail());
+            n.setPhone(dto.getRecipient().getPhone());
+            n.setDeviceToken(dto.getRecipient().getDeviceToken());
+            n.setRecipient(resolveRecipientString(dto.getRecipient(), dto.getChannel()));
+        }
+        
         n.setSubject(subject);
         n.setContent(msg);
         n.setStatus(NotificationStatus.PENDING);
