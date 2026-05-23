@@ -2,12 +2,14 @@ package ma.sgitu.g5.repository;
 
 import ma.sgitu.g5.entity.Notification;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 @Repository
-public interface NotificationRepository extends JpaRepository<Notification, Long> {
+public interface NotificationRepository extends JpaRepository<Notification, Long>,
+        JpaSpecificationExecutor<Notification> {
 
     /**
      * Déduplication composite : (sourceService + notificationId) = clé unique globale.
