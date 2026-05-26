@@ -70,8 +70,6 @@ public class NotificationServiceImpl implements NotificationService {
         metadata.put("reference", incident.getReference());
         metadata.put("type", incident.getType().name());
         metadata.put("dateSignalement", incident.getDateSignalement().toString());
-        metadata.put("statut", incident.getStatut().name());
-        metadata.put("lienSuivi", "https://sgitu.ma/incidents/suivi/" + incident.getReference());
 
         NotificationEvent.Recipient recipient = buildRecipient(incident.getDeclarantId(), "EMAIL");
 
@@ -100,28 +98,30 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     @Override
-    public void envoyerAlerteIoT(Incident incident) {
+    public void envoyerAlerteDispatchers(Incident incident) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("incidentId", incident.getId());
         metadata.put("reference", incident.getReference());
         metadata.put("type", incident.getType().name());
-        metadata.put("source", "IOT");
+        metadata.put("source", incident.getSource());
         metadata.put("localisation", incident.getLocalisation().getLatitude() + "," + incident.getLocalisation().getLongitude());
         metadata.put("dateSignalement", incident.getDateSignalement().toString());
         if (incident.getDescription() != null) {
             metadata.put("description", incident.getDescription());
         }
 
-        NotificationEvent.Recipient recipient = NotificationEvent.Recipient.builder()
-                .userId("ROLE_SUPERVISEUR_INCIDENTS")
-                .phone("+212600112233") // fallback superviseur
-                .build();
-
-        NotificationEvent event = buildBaseEvent("INCIDENT_ALERT", "SMS", "HIGH", recipient)
-                .metadata(metadata)
-                .build();
-
-        notificationProducer.envoyerNotification(event);
+        try {
+            java.util.List<UtilisateurDTO> dispatchers = utilisateurClient.obtenirUtilisateursParRole("ROLE_DISPATCHER");
+            for (UtilisateurDTO dispatcher : dispatchers) {
+                NotificationEvent.Recipient recipient = buildRecipient(dispatcher.getId(), "PUSH");
+                NotificationEvent event = buildBaseEvent("INCIDENT_ALERT", "PUSH", "HIGH", recipient)
+                        .metadata(metadata)
+                        .build();
+                notificationProducer.envoyerNotification(event);
+            }
+        } catch (Exception e) {
+            log.warn("Erreur lors de la récupération des dispatchers pour alerte : {}", e.getMessage());
+        }
     }
 
     @Override
@@ -134,20 +134,34 @@ public class NotificationServiceImpl implements NotificationService {
         metadata.put("gravite", incident.getGravite().name());
         metadata.put("localisation", incident.getLocalisation().getLatitude() + "," + incident.getLocalisation().getLongitude());
 
-        NotificationEvent.Recipient recipient = NotificationEvent.Recipient.builder()
-                .userId("ROLE_DIRECTION")
-                .email("direction@sgitu.ma") // fallback direction
-                .build();
+        // 1. Notifier tous les superviseurs
+        try {
+            java.util.List<UtilisateurDTO> supervisors = utilisateurClient.obtenirUtilisateursParRole("ROLE_SUPERVISOR");
+            for (UtilisateurDTO supervisor : supervisors) {
+                NotificationEvent.Recipient recipient = buildRecipient(supervisor.getId(), "PUSH");
+                NotificationEvent event = buildBaseEvent("INCIDENT_ESCALADE", "PUSH", "HIGH", recipient)
+                        .metadata(metadata)
+                        .build();
+                notificationProducer.envoyerNotification(event);
+            }
+        } catch (Exception e) {
+            log.warn("Erreur lors de la récupération des superviseurs pour escalade : {}", e.getMessage());
+        }
 
-        NotificationEvent event = buildBaseEvent("INCIDENT_ESCALATED", "EMAIL", "HIGH", recipient)
-                .metadata(metadata)
-                .build();
-    
-        notificationProducer.envoyerNotification(event);
+        // 2. Notifier le technicien assigné (s'il y en a un)
+        if (incident.getResponsableId() != null) {
+            NotificationEvent.Recipient technicienRecipient = buildRecipient(incident.getResponsableId(), "PUSH");
+            NotificationEvent technicienEvent = buildBaseEvent("INCIDENT_ESCALADE", "PUSH", "HIGH", technicienRecipient)
+                    .metadata(metadata)
+                    .build();
+            notificationProducer.envoyerNotification(technicienEvent);
+        }
     }
 
     @Override
     public void envoyerAssignation(Incident incident) {
+        if (incident.getResponsableId() == null) return;
+
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("reference", incident.getReference());
         metadata.put("typePanne", incident.getType().name());
@@ -157,12 +171,47 @@ public class NotificationServiceImpl implements NotificationService {
             metadata.put("description", incident.getDescription());
         }
 
-        NotificationEvent.Recipient recipient = buildRecipient(incident.getResponsableId(), "SMS");
-
-        NotificationEvent event = buildBaseEvent("INTERVENTION_ASSIGNED", "SMS", "HIGH", recipient)
+        // 1. Envoi PUSH
+        NotificationEvent.Recipient recipientPush = buildRecipient(incident.getResponsableId(), "PUSH");
+        NotificationEvent eventPush = buildBaseEvent("INTERVENTION_ASSIGNED", "PUSH", "HIGH", recipientPush)
                 .metadata(metadata)
                 .build();
+        notificationProducer.envoyerNotification(eventPush);
 
-        notificationProducer.envoyerNotification(event);
+        // 2. Envoi SMS
+        NotificationEvent.Recipient recipientSms = buildRecipient(incident.getResponsableId(), "SMS");
+        NotificationEvent eventSms = buildBaseEvent("INTERVENTION_ASSIGNED", "SMS", "HIGH", recipientSms)
+                .metadata(metadata)
+                .build();
+        notificationProducer.envoyerNotification(eventSms);
+    }
+
+    @Override
+    public void envoyerAssignationRenfort(Incident incident, Long agentId) {
+        if (agentId == null) return;
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("reference", incident.getReference());
+        metadata.put("typePanne", incident.getType().name());
+        metadata.put("urgence", incident.getGravite().name());
+        metadata.put("localisation", incident.getLocalisation().getLatitude() + "," + incident.getLocalisation().getLongitude());
+        
+        String desc = incident.getDescription() != null ? incident.getDescription() : "";
+        desc = "Vous avez été appelé en renfort sur cet incident. " + desc;
+        metadata.put("description", desc);
+
+        // 1. Envoi PUSH
+        NotificationEvent.Recipient recipientPush = buildRecipient(agentId, "PUSH");
+        NotificationEvent eventPush = buildBaseEvent("RENFORT_ASSIGNED", "PUSH", "HIGH", recipientPush)
+                .metadata(metadata)
+                .build();
+        notificationProducer.envoyerNotification(eventPush);
+
+        // 2. Envoi SMS
+        NotificationEvent.Recipient recipientSms = buildRecipient(agentId, "SMS");
+        NotificationEvent eventSms = buildBaseEvent("RENFORT_ASSIGNED", "SMS", "HIGH", recipientSms)
+                .metadata(metadata)
+                .build();
+        notificationProducer.envoyerNotification(eventSms);
     }
 }
