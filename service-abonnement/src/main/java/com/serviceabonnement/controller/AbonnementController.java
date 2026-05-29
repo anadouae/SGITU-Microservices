@@ -3,6 +3,7 @@ package com.serviceabonnement.controller;
 import com.serviceabonnement.entity.Abonnement;
 import com.serviceabonnement.entity.Renouvellement;
 import com.serviceabonnement.service.AbonnementService;
+import com.serviceabonnement.config.JwtUtils;
 import com.serviceabonnement.dto.response.ErrorResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +34,7 @@ import java.util.Map;
 public class AbonnementController {
 
     private final AbonnementService abonnementService;
+    private final JwtUtils jwtUtils;
 
     @Operation(summary = "Souscrire à un nouvel abonnement")
     @ApiResponses(value = {
@@ -43,8 +46,20 @@ public class AbonnementController {
     @PostMapping("/souscrire")
     public ResponseEntity<Abonnement> souscrire(
             @Parameter(description = "ID de l'utilisateur") @RequestParam Long userId,
-            @Parameter(description = "ID du plan d'abonnement") @RequestParam Long planId) {
-        return new ResponseEntity<>(abonnementService.souscrire(userId, planId), HttpStatus.CREATED);
+            @Parameter(description = "ID du plan d'abonnement") @RequestParam Long planId,
+            HttpServletRequest request) {
+        // Extract JWT from Authorization header
+        String authHeader = request.getHeader("Authorization");
+        String email = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String jwt = authHeader.substring(7);
+            try {
+                email = jwtUtils.extractEmail(jwt);
+            } catch (Exception e) {
+                email = null;
+            }
+        }
+        return new ResponseEntity<>(abonnementService.souscrire(userId, planId, email), HttpStatus.CREATED);
     }
 
     @Operation(summary = "Récupérer un abonnement par ID")

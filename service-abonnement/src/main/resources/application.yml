@@ -1,6 +1,9 @@
 server:
   port: 8082
 
+jwt:
+  secret: ${JWT_SECRET:your_jwt_secret_here_min_256_bits}
+
 spring:
   application:
     name: service-abonnement

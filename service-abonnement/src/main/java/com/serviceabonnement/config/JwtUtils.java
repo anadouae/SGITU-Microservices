@@ -1,42 +1,61 @@
 package com.serviceabonnement.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.Base64;
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.util.List;
 import java.util.Map;
 
 @Component
 public class JwtUtils {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    @Value("${jwt.secret}")
+    private String jwtSecret;
 
-    public String extractUsername(String token) {
-        return (String) extractAllClaims(token).get("sub");
+    private Key getSignKey() {
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String extractRole(String token) {
-        return (String) extractAllClaims(token).get("role");
+    public String extractUsername(String token) {
+        return extractAllClaims(token).getSubject();
+    }
+
+    public String extractEmail(String token) {
+        return (String) extractAllClaims(token).get("email");
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> extractAllClaims(String token) {
-        try {
-            String[] parts = token.split("\\.");
-            if (parts.length < 2) {
-                throw new IllegalArgumentException("Invalid JWT token format");
-            }
-            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
-            return objectMapper.readValue(payload, Map.class);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to decode JWT payload", e);
+    public List<String> extractRoles(String token) {
+        Claims claims = extractAllClaims(token);
+        // User Service sets the roles list in the "roles" claim
+        Object rolesObj = claims.get("roles");
+        if (rolesObj instanceof List) {
+            return (List<String>) rolesObj;
         }
+        // Fallback for single role string in the "role" claim
+        Object roleObj = claims.get("role");
+        if (roleObj instanceof String) {
+            return List.of((String) roleObj);
+        }
+        return List.of();
+    }
+
+    public Claims extractAllClaims(String token) {
+        return Jwts.parser()
+            .setSigningKey(getSignKey())
+            .build()
+            .parseClaimsJws(token)
+            .getBody();
     }
 
     public boolean isTokenValid(String token) {
-        // En mode "total trust", on vérifie juste que le format est correct
         try {
-            extractAllClaims(token);
+            extractAllClaims(token); // Throws exception if signature is invalid or expired
             return true;
         } catch (Exception e) {
             return false;

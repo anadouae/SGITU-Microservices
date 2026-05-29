@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface RenouvellementRepository extends JpaRepository<Renouvellement, Long> {
     List<Renouvellement> findByAbonnementId(Long abonnementId);
+    java.util.Optional<Renouvellement> findByPaiementId(String paiementId);
 }
