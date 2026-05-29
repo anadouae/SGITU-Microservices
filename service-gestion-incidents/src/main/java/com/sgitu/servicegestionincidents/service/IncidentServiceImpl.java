@@ -800,4 +800,43 @@ public class IncidentServiceImpl implements IncidentService {
                 .map(this::mapToIncidentResponseDTO)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<IncidentResponseDTO> obtenirIncidentsAffectes(Long userId) {
+        log.info("Récupération des incidents affectés à l'utilisateur : {}", userId);
+        return incidentRepository.trouverIncidentsAffectes(userId).stream()
+                .map(this::mapToIncidentResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<IncidentResponseDTO> obtenirDemandesEscalades() {
+        log.info("Récupération des incidents avec demande d'escalade en attente");
+        return incidentRepository.findByDemandeEscalade(true).stream()
+                .map(this::mapToIncidentResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<IncidentResponseDTO> obtenirMesSignalements(Long userId) {
+        log.info("Récupération des incidents signalés par l'utilisateur : {}", userId);
+        return incidentRepository.findByDeclarantId(userId).stream()
+                .map(this::mapToIncidentResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RenfortDTO> obtenirRenforts(Long incidentId) {
+        log.info("Récupération des renforts pour l'incident {}", incidentId);
+        Incident incident = trouverIncidentOuErreur(incidentId);
+        verifierLockoutEscalade(incident);
+
+        return incident.getRenforts().stream()
+                .map(renfort -> modelMapper.map(renfort, RenfortDTO.class))
+                .collect(Collectors.toList());
+    }
 }
