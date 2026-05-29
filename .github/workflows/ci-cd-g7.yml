@@ -6,7 +6,7 @@ on:
     # Déclenche uniquement si des fichiers dans le microservice G7 sont modifiés
     paths:
       - "service-suivi-vehicule/**"
-      - ".github/workflows/ci-cd.yml"
+      - "ci-cd-g7.yml"
   pull_request:
     branches: [ "main" ]
     paths:
