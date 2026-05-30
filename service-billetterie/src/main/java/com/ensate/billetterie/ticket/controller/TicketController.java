@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/tickets")
+@RequestMapping("/api/v1/tickets")
 @Tag(name = "Normal User – Ticket Management", description = "Normal User Operations for managing ticket operations")
 @RequiredArgsConstructor
 public class TicketController {
