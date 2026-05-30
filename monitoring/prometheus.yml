@@ -42,11 +42,13 @@ scrape_configs:
   #     - targets: ["notification-service:8085"]
   #       labels: { group: G5, service: notifications }
 
-  # --- G7 — Suivi véhicules ---
-  # - job_name: g7-suivi-vehicules
-  #   metrics_path: /actuator/prometheus
-  #   static_configs:
-  #     - targets: ["g7-service:8087"]
-  #       labels: { group: G7, service: suivi-vehicules }
+  # --- G7 — Suivi véhicules (intégration upstream) ---
+  - job_name: service-suivi-vehicule
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["g7-service:8087"]
+        labels:
+          group: G7
+          service: suivi-vehicules
 
   # --- G8 / G9 / G10 — ajoutez un job par groupe ---
