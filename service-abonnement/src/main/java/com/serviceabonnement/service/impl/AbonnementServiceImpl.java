@@ -68,7 +68,6 @@ public class AbonnementServiceImpl implements AbonnementService {
     private AbonnementServiceImpl self;
 
     @Override
-    @Transactional
     @CircuitBreaker(name = "externalService", fallbackMethod = "souscrireFallback")
     @Retry(name = "externalService")
     @Bulkhead(name = "externalService")
@@ -330,7 +329,6 @@ public class AbonnementServiceImpl implements AbonnementService {
     }
 
     @Override
-    @Transactional
     @CircuitBreaker(name = "externalService", fallbackMethod = "annulationFallback")
     @Retry(name = "externalService")
     public void demanderAnnulation(Long abonnementId) {
@@ -803,6 +801,9 @@ public class AbonnementServiceImpl implements AbonnementService {
     }
 
     public void annulationFallback(Long abonnementId, Throwable t) {
+        if (t instanceof BaseException baseException) {
+            throw baseException;
+        }
         log.error("Fallback annulation pour l'abonnement {}. Raison: {}", abonnementId, t.getMessage());
         throw new com.serviceabonnement.exception.ExternalServiceException(
             "Le service d'annulation est momentanément indisponible. Votre demande a été enregistrée mais le remboursement sera traité ultérieurement.");
