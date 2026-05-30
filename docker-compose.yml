@@ -19,7 +19,8 @@
 #  DÉMARRAGE :
 #    cp .env.example .env     # première fois — remplir g4_DB_*, JWT_SECRET, etc.
 #    docker compose up -d
-#  Monitoring : http://localhost:9090/targets  |  Grafana http://localhost:3000 (admin/admin)
+#  Monitoring : prometheus.yml (racine) — http://localhost:9090/targets | Grafana :3000
+#  Dashboard G4 local : service-coordination-transport/ + docker compose --profile monitoring
 # ================================================================
 
 services:
@@ -312,40 +313,34 @@ services:
   # ---------------------------------------------------------------
 
   # ---------------------------------------------------------------
-  # Observabilité transverse (Prometheus + Grafana — monorepo)
-  # Config scrape : monitoring/prometheus.yml (section par groupe G1–G10)
+  # Observabilité transverse (alignement repo promo — prometheus.yml racine)
+  # Dashboard Grafana G4 : voir service-coordination-transport/monitoring/ (profil local)
   # ---------------------------------------------------------------
   prometheus:
-    image: prom/prometheus:v2.54.1
-    container_name: sgitu-prometheus
-    hostname: prometheus
+    image: prom/prometheus:latest
+    container_name: prometheus
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - "9090:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
       - sgitu-network
     depends_on:
       - g7-service
 
   grafana:
-    image: grafana/grafana:11.2.0
-    container_name: sgitu-grafana
-    hostname: grafana
+    image: grafana/grafana:latest
+    container_name: grafana
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
     volumes:
-      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - grafana-data:/var/lib/grafana
-    depends_on:
-      - prometheus
     networks:
       - sgitu-network
+    depends_on:
+      - prometheus
 
   # ---------------------------------------------------------------
   # Services transversaux (Kafka)

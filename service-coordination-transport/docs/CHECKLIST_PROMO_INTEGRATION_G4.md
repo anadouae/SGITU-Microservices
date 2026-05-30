@@ -158,5 +158,6 @@ G3 a publié une **nouvelle nomenclature**. À **aligner** avec eux avant les te
 | Jour d’intégration | `docs/JOUR_INTEGRATION_ET_LIVRAISON_G4.md` |
 | Rôles G4 ↔ G3 | `docs/ROLES_G3_G4_ALIGNMENT.md` |
 | Rôles G4 ↔ G9 | `docs/ALIGNEMENT_ROLES_G3_G4_G9.md` |
-| Monitoring local | `monitoring/prometheus.yml`, `docker compose --profile monitoring` |
+| Monitoring promo (racine) | `prometheus.yml` (job G4) + `docker compose up` |
+| Monitoring local G4 | `service-coordination-transport/monitoring/` + `--profile monitoring` |
 | CI/CD | `docs/CI_CD_G4.md` |
