@@ -2,14 +2,15 @@ package ma.sgitu.g5.provider;
 
 import java.util.UUID;
 
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import ma.sgitu.g5.dto.response.SendResultDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import ma.sgitu.g5.dto.response.SendResultDTO;
 
 @Service
 @Slf4j
@@ -21,7 +22,7 @@ public class SendGridEmailAdapter implements IEmailProvider {
     private String fromAddress;
 
     /**
-     * Envoie un e-mail via JavaMailSender (MailHog en dev, SendGrid en prod).
+     * Envoie un e-mail via JavaMailSender (SMTP configuré par Spring).
      * Protégé par un Circuit Breaker "notificationProvider" :
      * si le taux d'échec dépasse 50% sur 10 appels, le circuit s'ouvre 30s
      * et la méthode fallback est appelée immédiatement.
@@ -54,7 +55,7 @@ public class SendGridEmailAdapter implements IEmailProvider {
 
             SendResultDTO result = new SendResultDTO();
             result.setSuccess(true);
-            result.setProvider("mailhog-" + UUID.randomUUID());
+            result.setProvider("smtp-" + UUID.randomUUID());
             result.setRetryCount(0);
             return result;
         } catch (Exception e) {

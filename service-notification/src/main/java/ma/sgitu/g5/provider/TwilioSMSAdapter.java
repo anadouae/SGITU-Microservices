@@ -1,18 +1,31 @@
 package ma.sgitu.g5.provider;
 
-import java.util.UUID;
-
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import ma.sgitu.g5.dto.response.SendResultDTO;
+import com.twilio.Twilio;
+import com.twilio.rest.api.v2010.account.Message;
+import com.twilio.type.PhoneNumber;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+
+import java.util.UUID;
 
 @Service
 @Slf4j
 public class TwilioSMSAdapter implements ISMSProvider {
 
+    @Value("${twilio.account-sid:}")
+    private String accountSid;
+
+    @Value("${twilio.auth-token:}")
+    private String authToken;
+
+    @Value("${twilio.from-phone:}")
+    private String fromPhone;
+
     /**
-     * Envoie un SMS via Twilio (simulé en dev).
+     * Envoie un SMS via Twilio.
      * Protégé par un Circuit Breaker "notificationProvider" :
      * si le taux d'échec dépasse 50% sur 10 appels, le circuit s'ouvre 30s
      * et la méthode fallback est appelée immédiatement.
@@ -32,13 +45,34 @@ public class TwilioSMSAdapter implements ISMSProvider {
             return result;
         }
 
-        log.info("[G5-SMS] Simule -> {} | {}", phone, message);
+        if (accountSid == null || accountSid.isBlank() || authToken == null || authToken.isBlank()
+                || fromPhone == null || fromPhone.isBlank()) {
+            SendResultDTO result = new SendResultDTO();
+            result.setSuccess(false);
+            result.setErrorCode("TWILIO_NOT_CONFIGURED");
+            result.setRetryCount(0);
+            return result;
+        }
 
-        SendResultDTO result = new SendResultDTO();
-        result.setSuccess(true);
-        result.setProvider("twilio-mock-" + UUID.randomUUID());
-        result.setRetryCount(0);
-        return result;
+        try {
+            Twilio.init(accountSid, authToken);
+            Message msg = Message.creator(
+                    new PhoneNumber(phone),
+                    new PhoneNumber(fromPhone),
+                    message != null ? message : "")
+                .create();
+
+            log.info("[G5-SMS] Envoye -> {} | sid={}", phone, msg.getSid());
+
+            SendResultDTO result = new SendResultDTO();
+            result.setSuccess(true);
+            result.setProvider("twilio-" + msg.getSid());
+            result.setRetryCount(0);
+            return result;
+        } catch (Exception e) {
+            log.error("[G5-SMS] Echec -> {} | {}", phone, e.getMessage());
+            throw new RuntimeException("[SMS] Echec envoi Twilio : " + e.getMessage(), e);
+        }
     }
 
     /**

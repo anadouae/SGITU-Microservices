@@ -1,18 +1,24 @@
 package ma.sgitu.g5.provider;
 
-import java.util.UUID;
-
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.extern.slf4j.Slf4j;
 import ma.sgitu.g5.dto.response.SendResultDTO;
+
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.Message;
+import com.google.firebase.messaging.Notification;
+
 import org.springframework.stereotype.Service;
+
+import java.util.UUID;
 
 @Service
 @Slf4j
 public class FCMPushAdapter implements IPushProvider {
 
     /**
-     * Envoie une notification Push via FCM (simulé en dev).
+     * Envoie une notification Push via FCM.
      * Protégé par un Circuit Breaker "notificationProvider" :
      * si le taux d'échec dépasse 50% sur 10 appels, le circuit s'ouvre 30s
      * et la méthode fallback est appelée immédiatement.
@@ -32,13 +38,34 @@ public class FCMPushAdapter implements IPushProvider {
             return result;
         }
 
-        log.info("[G5-PUSH] Simule -> token={} | {}", deviceToken, message);
+        if (FirebaseApp.getApps().isEmpty()) {
+            SendResultDTO result = new SendResultDTO();
+            result.setSuccess(false);
+            result.setErrorCode("FCM_NOT_INITIALIZED");
+            result.setRetryCount(0);
+            return result;
+        }
 
-        SendResultDTO result = new SendResultDTO();
-        result.setSuccess(true);
-        result.setProvider("fcm-mock-" + UUID.randomUUID());
-        result.setRetryCount(0);
-        return result;
+        try {
+            Message msg = Message.builder()
+                .setToken(deviceToken)
+                .setNotification(Notification.builder()
+                    .setTitle("SGITU Notification")
+                    .setBody(message != null ? message : "")
+                    .build())
+                .build();
+
+            String response = FirebaseMessaging.getInstance().send(msg);
+
+            SendResultDTO result = new SendResultDTO();
+            result.setSuccess(true);
+            result.setProvider("fcm-" + response);
+            result.setRetryCount(0);
+            return result;
+        } catch (Exception e) {
+            log.error("[G5-PUSH] Echec -> token={} | {}", deviceToken, e.getMessage());
+            throw new RuntimeException("[PUSH] Echec envoi FCM : " + e.getMessage(), e);
+        }
     }
 
     /**

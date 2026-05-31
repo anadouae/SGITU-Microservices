@@ -1,12 +1,11 @@
 package ma.sgitu.g5.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import ma.sgitu.g5.dto.request.MetadataDTO;
-import ma.sgitu.g5.dto.request.NotificationRequestDTO;
-import ma.sgitu.g5.dto.request.RecipientDTO;
-import ma.sgitu.g5.service.INotificationService;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -14,8 +13,14 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import ma.sgitu.g5.dto.request.MetadataDTO;
+import ma.sgitu.g5.dto.request.NotificationRequestDTO;
+import ma.sgitu.g5.dto.request.RecipientDTO;
+import ma.sgitu.g5.service.INotificationService;
 
 /**
  * KafkaConsumerController — Consommateur centralisé pour SGITU.
@@ -126,6 +131,80 @@ public class KafkaConsumerController {
         }
     }
 
+    // ── G7 — Suivi Vehicules : Logs critiques admin (topic dedie) ─────────
+    @KafkaListener(
+        topics = "${g5.kafka.g7-log-topic:g7.log-alerts}",
+        groupId = "notification-group",
+        containerFactory = "kafkaListenerContainerFactory"
+    )
+    public void handleG7LogAlert(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
+        log.info("[KAFKA-G7] Log alert recu | topic={} | offset={}", record.topic(), record.offset());
+        try {
+            Map<String, Object> event = objectMapper.readValue(record.value(), Map.class);
+
+            String eventType = (String) event.getOrDefault("eventType", "LOG_ALERT_ADMIN");
+            String channel = (String) event.getOrDefault("channel", "EMAIL");
+            String priority = (String) event.getOrDefault("priority", "HIGH");
+
+            String notificationId = String.valueOf(event.getOrDefault(
+                    "notificationId", "G7-LOG-" + UUID.randomUUID()));
+
+            String userId = String.valueOf(resolveRecipientField(event, "userId", "admin"));
+
+            Map<String, Object> metadata = extractMetadata(event);
+
+            NotificationRequestDTO dto = buildDto(
+                notificationId,
+                "G7_SUIVI_VEHICULES",
+                eventType,
+                channel,
+                priority,
+                userId,
+                event,
+                metadata
+            );
+
+            notificationService.send(dto);
+            acknowledgment.acknowledge();
+        } catch (Exception e) {
+            log.error("[KAFKA-G7] Echec du traitement : {}", e.getMessage());
+        }
+    }
+
+    // ── G9 — Incidents : Topic unique 'notifications' (Contrat v5.0) ───────
+    @KafkaListener(
+        topics = "${g5.kafka.g9-notifications-topic:notifications}", 
+        groupId = "notification-group", 
+        containerFactory = "kafkaListenerContainerFactory"
+    )
+    public void handleG9Notification(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
+        log.info("[KAFKA-G9] Event reçu sur 'notifications' | offset={}", record.offset());
+        try {
+            Map<String, Object> event = objectMapper.readValue(record.value(), Map.class);
+            String eventType = (String) event.get("eventType");
+            
+            // Canaux : priorité au payload, sinon EMAIL par défaut
+            List<String> channels = (List<String>) event.getOrDefault("channels", List.of("EMAIL"));
+            String userId = String.valueOf(resolveRecipientField(event, "userId", "unknown"));
+            
+            Map<String, Object> metadata = extractMetadata(event);
+            String reference = String.valueOf(metadata.getOrDefault("reference", "REF-" + UUID.randomUUID().toString().substring(0, 8)));
+
+            for (String channel : channels) {
+                // ID déterminisite pour l'idempotence G9
+                String deterministicId = "G9-" + reference + "-" + eventType + "-" + channel;
+                
+                NotificationRequestDTO dto = buildDto(
+                    deterministicId, "G9_INCIDENT", eventType, channel, "NORMAL", userId, event, metadata
+                );
+                notificationService.send(dto);
+            }
+            acknowledgment.acknowledge();
+        } catch (Exception e) {
+            log.error("[KAFKA-G9] Échec du traitement : {}", e.getMessage());
+        }
+    }
+
     // ── Dead Letter Topic : relance des messages en échec ─────────────────
     /**
      * Écoute tous les Dead Letter Topics générés par le {@link ma.sgitu.g5.config.KafkaConfig}.
@@ -196,14 +275,44 @@ public class KafkaConsumerController {
         RecipientDTO recipient = new RecipientDTO();
         recipient.setUserId(userId);
         // TODO: Appeler le service G3 (Utilisateurs) pour résoudre l'email/téléphone à partir de l'userId
-        recipient.setEmail((String) rawEvent.getOrDefault("email", ""));
-        recipient.setPhone((String) rawEvent.getOrDefault("phone", ""));
-        recipient.setDeviceToken((String) rawEvent.getOrDefault("deviceToken", ""));
+        recipient.setEmail(String.valueOf(resolveRecipientField(rawEvent, "email", "")));
+        recipient.setPhone(String.valueOf(resolveRecipientField(rawEvent, "phone", "")));
+        recipient.setDeviceToken(String.valueOf(resolveRecipientField(rawEvent, "deviceToken", "")));
         dto.setRecipient(recipient);
 
         MetadataDTO m = new MetadataDTO();
         m.setData(metadata);
         dto.setMetadata(m);
         return dto;
+    }
+
+    private Object resolveRecipientField(Map<String, Object> rawEvent, String field, String fallback) {
+        Object recipientObj = rawEvent.get("recipient");
+        if (recipientObj instanceof Map<?, ?> recipientMap) {
+            Object value = recipientMap.get(field);
+            if (value != null) {
+                return value;
+            }
+        }
+        Object direct = rawEvent.get(field);
+        return (direct != null) ? direct : fallback;
+    }
+
+    private Map<String, Object> extractMetadata(Map<String, Object> rawEvent) {
+        Object meta = rawEvent.get("metadata");
+        if (meta instanceof Map<?, ?> metaMap) {
+            Map<String, Object> casted = new HashMap<>();
+            for (Map.Entry<?, ?> entry : metaMap.entrySet()) {
+                casted.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+            return casted;
+        }
+        Map<String, Object> fallback = new HashMap<>();
+        for (Map.Entry<String, Object> entry : rawEvent.entrySet()) {
+            if (!"recipient".equals(entry.getKey())) {
+                fallback.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return fallback;
     }
 }

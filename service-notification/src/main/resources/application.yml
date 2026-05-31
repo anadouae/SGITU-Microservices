@@ -74,6 +74,17 @@ jwt:
   secret: ${JWT_SECRET}
   expiration: 86400000  # 24 heures en millisecondes
 
+# ── Firebase (FCM) ─────────────────────────────────────────
+firebase:
+  credentials:
+    path: ${FIREBASE_CREDENTIALS_PATH:}
+
+# ── Twilio (SMS) ───────────────────────────────────────────
+twilio:
+  account-sid: ${TWILIO_ACCOUNT_SID:}
+  auth-token: ${TWILIO_AUTH_TOKEN:}
+  from-phone: ${TWILIO_FROM_PHONE:}
+
 # ── Configuration G5 ────────────────────────────────────────
 g5:
   # Retry configuration
@@ -89,6 +100,11 @@ g5:
   # Templates par défaut
   templates:
     default-language: fr
+
+  # Kafka topics G5
+  kafka:
+    g7-log-topic: g7.log-alerts
+    g9-notifications-topic: notifications
 
 # ── Resilience4j — Circuit Breaker ──────────────────────────
 resilience4j:
@@ -169,8 +185,17 @@ spring:
         max.in.flight.requests.per.connection: 5
 
   mail:
-    host: mailhog
-    port: 1025
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    from: ${MAIL_FROM}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 jwt:
   secret: ${JWT_SECRET}

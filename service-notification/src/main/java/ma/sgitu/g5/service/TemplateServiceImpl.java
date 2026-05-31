@@ -1,10 +1,11 @@
 package ma.sgitu.g5.service;
 
-import lombok.extern.slf4j.Slf4j;
-import ma.sgitu.g5.dto.request.MetadataDTO;
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
+import ma.sgitu.g5.dto.request.MetadataDTO;
 
 @Slf4j
 @Service
@@ -149,6 +150,21 @@ public class TemplateServiceImpl implements ITemplateService {
     private static final String TPL_INCIDENT_CONFIRMATION_MAINTENANCE = "Technicien {technicien} confirmé. Arrivée estimée : {heureArriveeEstimee}. Incident : {reference}.";
 
     // ============================================================
+    // TEMPLATES G9 - KAFKA (Contrat v5.0 - 6 eventTypes)
+    // ============================================================
+    private static final String TPL_G9_K_INCIDENT_ALERT = "ALERTE INCIDENT : {type} à {localisation}. Gravité : {gravite}.";
+
+    private static final String TPL_G9_K_RENFORT_ASSIGNED = "Renfort {renfortType} assigné pour l'incident {reference}.";
+
+    private static final String TPL_G9_K_INTERVENTION_ASSIGNED = "Vous avez été assigné à l'intervention {reference}. Localisation : {localisation}.";
+
+    private static final String TPL_G9_K_STATUS_UPDATED = "Statut de l'incident {reference} mis à jour : {nouveauStatut}.";
+
+    private static final String TPL_G9_K_RESOLVED = "L'incident {reference} est maintenant résolu. Résolution : {resolution}.";
+
+    private static final String TPL_G9_K_CRITICAL_ALERT = "ALERTE CRITIQUE : Incident {reference} nécessite une attention immédiate ! Motif : {motif}.";
+
+    // ============================================================
     // TEMPLATES G10 - AUTH (REST - 3 eventTypes)
     // ============================================================
     private static final String TPL_VERIFY_EMAIL = "Bienvenue sur SGITU ! Cliquez sur ce lien pour vérifier votre compte : {verificationLink}";
@@ -157,6 +173,11 @@ public class TemplateServiceImpl implements ITemplateService {
 
     // G10 utilise SECURITY_ALERT avec ipAddress (détecté par G10)
     private static final String TPL_G10_SECURITY_ALERT = "Connexion suspecte détectée sur votre compte depuis l'IP {ipAddress}. Si ce n'est pas vous, changez votre mot de passe immédiatement.";
+
+    // ============================================================
+    // TEMPLATES G7 - SUIVI VEHICULES (LOG ALERT ADMIN)
+    // ============================================================
+    private static final String TPL_LOG_ALERT_ADMIN = "ALERTE LOG {logLevel} - {serviceName} : {message} (source={source}, timestamp={timestamp}).";
 
     // ============================================================
     // MAP : eventType → template message (61 templates)
@@ -234,9 +255,20 @@ public class TemplateServiceImpl implements ITemplateService {
             Map.entry("INCIDENT_IOT_ALERTE", TPL_INCIDENT_IOT_ALERTE),
             Map.entry("INCIDENT_CONFIRMATION_MAINTENANCE", TPL_INCIDENT_CONFIRMATION_MAINTENANCE),
 
+            // G9 - Kafka (6)
+            Map.entry("INCIDENT_ALERT", TPL_G9_K_INCIDENT_ALERT),
+            Map.entry("RENFORT_ASSIGNED", TPL_G9_K_RENFORT_ASSIGNED),
+            Map.entry("INTERVENTION_ASSIGNED", TPL_G9_K_INTERVENTION_ASSIGNED),
+            Map.entry("INCIDENT_STATUS_UPDATED", TPL_G9_K_STATUS_UPDATED),
+            Map.entry("INCIDENT_RESOLVED", TPL_G9_K_RESOLVED),
+            Map.entry("CRITICAL_ALERT", TPL_G9_K_CRITICAL_ALERT),
+
             // G10 - Auth (3) - pas de SECURITY_ALERT ici car déjà mappé dans G3
             Map.entry("VERIFY_EMAIL", TPL_VERIFY_EMAIL),
-            Map.entry("RESET_PASSWORD", TPL_RESET_PASSWORD));
+            Map.entry("RESET_PASSWORD", TPL_RESET_PASSWORD),
+
+            // G7 - Logs admin
+            Map.entry("LOG_ALERT_ADMIN", TPL_LOG_ALERT_ADMIN));
 
     // ============================================================
     // MAP : eventType → template subject (pour emails)
@@ -255,6 +287,9 @@ public class TemplateServiceImpl implements ITemplateService {
             // G3
             Map.entry("WELCOME", "Bienvenue sur SGITU"),
             Map.entry("SECURITY_ALERT", "SGITU - Alerte de sécurité"),
+
+            // G7
+            Map.entry("LOG_ALERT_ADMIN", "SGITU - Alerte logs admin"),
 
             // G4
             Map.entry("MISSION_CANCELLED", "SGITU - Mission annulée"),
@@ -277,6 +312,14 @@ public class TemplateServiceImpl implements ITemplateService {
             Map.entry("INCIDENT_ESCALADE", "SGITU - ALERTE ESCALADE"),
             Map.entry("INCIDENT_CLOTURE", "SGITU - Incident clôturé"),
             Map.entry("INCIDENT_IOT_ALERTE", "SGITU - ALERTE IOT"),
+
+            // G9 - Kafka
+            Map.entry("INCIDENT_ALERT", "SGITU - Signalement incident"),
+            Map.entry("RENFORT_ASSIGNED", "SGITU - Renfort assigné"),
+            Map.entry("INTERVENTION_ASSIGNED", "SGITU - Affectation d'intervention"),
+            Map.entry("INCIDENT_STATUS_UPDATED", "SGITU - Statut incident mis à jour"),
+            Map.entry("INCIDENT_RESOLVED", "SGITU - Incident résolu"),
+            Map.entry("CRITICAL_ALERT", "SGITU - ALERTE CRITIQUE G9"),
 
             // G10
             Map.entry("VERIFY_EMAIL", "SGITU - Vérification de compte"),
